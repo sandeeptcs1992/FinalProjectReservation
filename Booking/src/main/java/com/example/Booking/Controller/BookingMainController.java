@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.http.ResponseEntity;
@@ -54,7 +55,12 @@ public class BookingMainController {
 	BookingRepository bookingRepository;
 	
 	@Autowired
+	@Qualifier("Inventory")
 	private WebClient webClient;
+	
+	@Autowired
+	@Qualifier("Payment")
+	private WebClient webClient2;
 	
 	@Autowired
 	private KafkaTemplate<String, OrderEvent> kafkaTemplate;
@@ -170,86 +176,65 @@ public class BookingMainController {
 	}
 	
 	
-	
-	//booking service call to inventory
-	
-	@PostMapping("availableSeatss/{id}")
-	public ResponseEntity<?> getavailableSeats(@RequestBody BookingModel bookingModel , @PathVariable int id)
-	{
-		//org.springframework.http.HttpStatus httpstaus = null;
-		Map<String, Object> successmap = new HashMap<String, Object>();
-		Map<String, Object> failmap = new HashMap<String, Object>();
-		String available_seats = null;
-	try {
-		logger.info("Inside available seat webflux call to get detail of bus nos from inventory");
-		String abc=webClient.get().uri("http://localhost:8090//Inventory/getBusRouteDetailsById/"+id)
-	                         .retrieve()
-	                                 .bodyToMono(String.class)
-	                                         .block();
-		
-		
-		
-		JSONObject jsonObj= new JSONObject(abc.toString());
-		
-	if (jsonObj.has("available_seats") ) {
-		logger.info("Taking out available seat for that bus number");	
-		available_seats =	 (String) jsonObj.get("available_seats");
-		System.out.print(available_seats);
-		}
-	
-	}
-	catch(Exception e)
-	{
-		logger.info("issue in calling inventrory service "+e);
-		failmap.put("message", "Issue in calling inventory service");
-		failmap.put("status_code", HttpStatus.SC_INTERNAL_SERVER_ERROR);
-		return ResponseEntity.ok(failmap);
-	}
-		
-		ArrayList _listquery = (ArrayList) bookingModel.getPassenger_model();
-		
-		if (Integer.parseInt(available_seats)   > _listquery.size() )
-		{
-			logger.info("checking available seat with passanger count");
-			try
-			{
-	
-				bookingModel.setBus_number(id);
-				int finalseat = Integer.parseInt(available_seats) - _listquery.size() ;
-				bookingModel.setNos_of_seats(finalseat);
-				logger.info("Inserting passenger detail and booking detail in respective db");
-				if(bookingService.addUserDetailsinventory(bookingModel))
-				{
-					successmap.put("Bookingmessage", "Updated booking detail ");
-					successmap.put("Passenger","Updated Passenger details");
-					String seatUpdated=webClient.put().uri("http://localhost:8090//Inventory/updateBusSeatDetails/"+id+"/"+finalseat)
-	                         .retrieve()
-	                                 .bodyToMono(String.class)
-	                                         .block();
-					logger.info("updated remaining seat after booking in inventory table");
-					successmap.put("InventoryMessage","Udated Inventory details with remaining seat");
-				}
-				successmap.put("status_code", HttpStatus.SC_CREATED);
-				   return ResponseEntity.ok(successmap);
-			
-			}
-			catch(Exception e)
-			{
-			 //  map.put("error", "Issue in Updating booking data");
-			   failmap.put("message", "Issue in Updating booking data");
-			   failmap.put("status_code", HttpStatus.SC_INTERNAL_SERVER_ERROR);
-			   return ResponseEntity.ok(failmap);
-			}
-		}
-		else
-		{
-			 failmap.put("message", "Available seat is less than passenger number");
-			   failmap.put("status_code", HttpStatus.SC_INTERNAL_SERVER_ERROR);
-			   return ResponseEntity.ok(failmap);
-			
-		}
-		
-	}
+	/*
+	 * //booking service call to inventory
+	 * 
+	 * @PostMapping("availableSeatss/{id}") public ResponseEntity<?>
+	 * getavailableSeats(@RequestBody BookingModel bookingModel , @PathVariable int
+	 * id) { //org.springframework.http.HttpStatus httpstaus = null; Map<String,
+	 * Object> successmap = new HashMap<String, Object>(); Map<String, Object>
+	 * failmap = new HashMap<String, Object>(); String available_seats = null; try {
+	 * logger.
+	 * info("Inside available seat webflux call to get detail of bus nos from inventory"
+	 * ); String abc=webClient.get().uri("/Inventory/getBusRouteDetailsById/"+id)
+	 * .retrieve() .bodyToMono(String.class) .block();
+	 * 
+	 * 
+	 * 
+	 * JSONObject jsonObj= new JSONObject(abc.toString());
+	 * 
+	 * if (jsonObj.has("available_seats") ) {
+	 * logger.info("Taking out available seat for that bus number"); available_seats
+	 * = (String) jsonObj.get("available_seats"); System.out.print(available_seats);
+	 * }
+	 * 
+	 * } catch(Exception e) { logger.info("issue in calling inventrory service "+e);
+	 * failmap.put("message", "Issue in calling inventory service");
+	 * failmap.put("status_code", HttpStatus.SC_INTERNAL_SERVER_ERROR); return
+	 * ResponseEntity.ok(failmap); }
+	 * 
+	 * ArrayList _listquery = (ArrayList) bookingModel.getPassenger_model();
+	 * 
+	 * if (Integer.parseInt(available_seats) > _listquery.size() ) {
+	 * logger.info("checking available seat with passanger count"); try {
+	 * 
+	 * bookingModel.setBus_number(id); int finalseat =
+	 * Integer.parseInt(available_seats) - _listquery.size() ;
+	 * bookingModel.setNos_of_seats(finalseat);
+	 * logger.info("Inserting passenger detail and booking detail in respective db"
+	 * ); if(bookingService.addUserDetailsinventory(bookingModel)) {
+	 * successmap.put("Bookingmessage", "Updated booking detail ");
+	 * successmap.put("Passenger","Updated Passenger details"); String
+	 * seatUpdated=webClient.put().uri(
+	 * "http://localhost:8090//Inventory/updateBusSeatDetails/"+id+"/"+finalseat)
+	 * .retrieve() .bodyToMono(String.class) .block();
+	 * logger.info("updated remaining seat after booking in inventory table");
+	 * successmap.put(
+	 * "InventoryMessage","Udated Inventory details with remaining seat"); }
+	 * successmap.put("status_code", HttpStatus.SC_CREATED); return
+	 * ResponseEntity.ok(successmap);
+	 * 
+	 * } catch(Exception e) { // map.put("error", "Issue in Updating booking data");
+	 * failmap.put("message", "Issue in Updating booking data");
+	 * failmap.put("status_code", HttpStatus.SC_INTERNAL_SERVER_ERROR); return
+	 * ResponseEntity.ok(failmap); } } else { failmap.put("message",
+	 * "Available seat is less than passenger number"); failmap.put("status_code",
+	 * HttpStatus.SC_INTERNAL_SERVER_ERROR); return ResponseEntity.ok(failmap);
+	 * 
+	 * }
+	 * 
+	 * }
+	 */
 	
 	//kafka change
 	@PostMapping("availableSeats/{id}")
@@ -261,7 +246,7 @@ public class BookingMainController {
 		String available_seats = null;
 	try {
 		logger.info("Inside available seat webflux call to get detail of bus nos from inventory");
-		String abc=webClient.get().uri("http://localhost:8090//Inventory/getBusRouteDetailsById/"+id)
+		String abc=webClient.get().uri("/Inventory/getBusRouteDetailsById/"+id)
 	                         .retrieve()
 	                                 .bodyToMono(String.class)
 	                                         .block();
@@ -407,12 +392,12 @@ public class BookingMainController {
 			
 			bookingService.editUserDetails(bm);
 			failmap.put("message", "Issue in Updating booking data");
-			String paymentStatusUpdated=webClient.put().uri("http://localhost:8098/Payment/updatePaymentStatus/"+bookingNumber)
+			String paymentStatusUpdated=webClient2.put().uri("/Payment/updatePaymentStatus/"+bookingNumber)
                    .retrieve()
                            .bodyToMono(String.class)
                                     .block();
 			failmap.put("message", "Issue in updating Payment data");	
-			String seatUpdated=webClient.put().uri("http://localhost:8090/Inventory/updateSeat/"+busNos+"/"+nosOfSeat)
+			String seatUpdated=webClient.put().uri("/Inventory/updateSeat/"+busNos+"/"+nosOfSeat)
                    .retrieve()
                            .bodyToMono(String.class)
                                    .block();
